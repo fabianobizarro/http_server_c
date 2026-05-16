@@ -2,7 +2,8 @@
 #include <string.h>
 #include <tcp.h>
 
-server_status_e bind_tcp_port(tcp_server *server, int port) {
+server_status_e bind_tcp_port(tcp_server* server, int port)
+{
     memset(server, 0, sizeof(*server));
     server->socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -13,10 +14,9 @@ server_status_e bind_tcp_port(tcp_server *server, int port) {
 
     server->address.sin_family = AF_INET;
     server->address.sin_addr.s_addr = INADDR_ANY;
-    server->address.sin_port = port;
+    server->address.sin_port = htons(port);
 
-    if (bind(server->socket_fd, (struct sockaddr *)&server->address,
-            sizeof(server->address)) < 0) {
+    if (bind(server->socket_fd, (struct sockaddr*)&server->address, sizeof(server->address)) < 0) {
         puts("Bind failed");
         close(server->socket_fd);
         return SERVER_BIND_ERROR;
@@ -32,12 +32,12 @@ server_status_e bind_tcp_port(tcp_server *server, int port) {
     return SERVER_OK;
 }
 
-int accept_client(int server_fd) {
-    struct sockaddr_in client_addr = {0};
+int accept_client(int server_fd)
+{
+    struct sockaddr_in client_addr = { 0 };
     socklen_t client_len = sizeof(client_addr);
 
-    int client_fd =
-        accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+    int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
     if (client_fd < 0) {
         puts("Accept failed");
         return -1;
