@@ -17,7 +17,8 @@ server_status_e bind_tcp_port(tcp_server* server, int port)
     server->address.sin_port = htons(port);
 
     if (bind(server->socket_fd, (struct sockaddr*)&server->address, sizeof(server->address)) < 0) {
-        puts("Bind failed");
+        printf("Bind failed: ");
+        perror("bind");
         close(server->socket_fd);
         return SERVER_BIND_ERROR;
     }
