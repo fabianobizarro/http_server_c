@@ -4,11 +4,18 @@
 
 server_status_e bind_tcp_port(tcp_server* server, int port)
 {
+    int opt = 1;
     memset(server, 0, sizeof(*server));
     server->socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (server->socket_fd == -1) {
         puts("Socket creation failed");
+        return SERVER_SOCKET_ERROR;
+    }
+
+    // making the socket port reusable
+    if (setsockopt(server->socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+        perror("setsockopt");
         return SERVER_SOCKET_ERROR;
     }
 

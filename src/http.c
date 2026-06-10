@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 http_parse_e read_http_request(int socket_fd, http_request* request)
@@ -71,4 +72,124 @@ void free_http_headers(http_request* request)
     free(request->headers);
     request->headers = NULL;
     request->headers_count = 0;
+}
+
+void add_http_header(http_response* response, const char* key, const char* value)
+{
+    response->headers = realloc(response->headers, sizeof(http_header_t) * (response->header_count + 1));
+    if (!response->headers) {
+        perror("Failed to allocate memory for headers");
+        exit(EXIT_FAILURE);
+    }
+
+    strncpy(response->headers[response->header_count].key, key, sizeof(response->headers[response->header_count].key) - 1);
+    strncpy(response->headers[response->header_count].value, value, sizeof(response->headers[response->header_count].value) - 1);
+    response->header_count++;
+}
+
+void init_http_response(http_response* response)
+{
+    response->status_code = 200; // OK
+    strncpy(response->reason_phrase, "OK", sizeof(response->reason_phrase) - 1);
+    response->headers = NULL;
+    response->header_count = 0;
+    response->body = NULL;
+    response->body_length = 0;
+}
+
+void free_http_response(http_response* response)
+{
+    free(response->headers);
+    response->headers = NULL;
+    response->header_count = 0;
+    free(response->body);
+    response->body = NULL;
+    response->body_length = 0;
+}
+
+char* construct_http_response(const http_response* response, size_t* response_length)
+{
+    size_t buffer_size = 1024;
+    char* buffer = malloc(buffer_size);
+
+    if (!buffer) {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+
+    // snprintf will write to the buffer the buffer_size and
+    // print the HTTP/1.1 200 OK content
+    // following the format: HTTP/1.1 %d %s\r\n
+    size_t offset = snprintf(buffer, buffer_size, "HTTP/1.1 %d %s\r\n", response->status_code, response->reason_phrase);
+
+    for (size_t i = 0; i < response->header_count; i++) {
+        // get the length of the formatted header key: value with the \r\n
+        size_t header_len = snprintf(NULL, 0, "%s: %s\r\n", response->headers[i].key, response->headers[i].value);
+
+        while (offset + header_len + 1 > buffer_size) {
+            buffer_size *= 2;
+            buffer = realloc(buffer, buffer_size);
+            if (!buffer) {
+                puts("Failed to reallocate memory for the response header");
+                perror("realloc");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        // write the header to the buffer
+        offset += snprintf(
+            buffer + offset,
+            buffer_size - offset,
+            "%s: %s\r\n",
+            response->headers[i].key, response->headers[i].value);
+    }
+
+    offset += snprintf(buffer + offset, buffer_size - offset, "\r\n");
+
+    if (response->body) {
+        while (offset + response->body_length + 1 > buffer_size) {
+            buffer_size *= 2;
+            buffer = realloc(buffer, buffer_size);
+            if (!buffer) {
+                puts("Failed to reallocate memory for the response body");
+                perror("realloc");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        memcpy(buffer + offset, response->body, response->body_length + 1);
+        offset += response->body_length;
+    }
+
+    *response_length = offset;
+    return buffer;
+}
+
+void send_http_response(int client_fd, const http_response* response)
+{
+    size_t response_length = 0;
+    char* response_data = construct_http_response(response, &response_length);
+
+    size_t total_sent = 0;
+    while (total_sent < response_length) {
+        ssize_t bytes_sent = send(client_fd, response_data + total_sent, response_length - total_sent, 0);
+        if (bytes_sent <= 0) {
+            puts("Failed to send response");
+            perror("send");
+            break;
+        }
+        total_sent += bytes_sent;
+    }
+
+    free(response_data);
+}
+
+void set_response_body(http_response* response, const char* content)
+{
+    if (response == NULL)
+        return;
+
+    response->body_length = strlen(content); // null terminator \0?
+    response->body = malloc(response->body_length);
+    strncpy(response->body, content, response->body_length);
 }

@@ -21,14 +21,13 @@ void handle_client(int client_fd)
         return;
     }
 
-    puts("HTTP Request parsed successfully");
-    printf("Method: %s\n", request.method);
-    printf("Path: %s\n", request.path);
-    printf("Protocol: %s\n", request.protocol);
-    puts("Headers");
+    puts("Incoming request:");
+    printf("\t%s %s | protocol %s\n", request.method, request.path, request.protocol);
+    puts("\tHeaders");
     for (size_t i = 0; i < request.headers_count; i++) {
-        printf("%s: %s\n", request.headers[i].key, request.headers[i].value);
+        printf("\t  %s: %s\n", request.headers[i].key, request.headers[i].value);
     }
+    puts("");
 
     free(request.headers);
 }
@@ -42,18 +41,31 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    int client_fd = accept_client(server.socket_fd);
-    if (client_fd == -1) {
-        puts("Failed to accept client connection");
-        close(server.socket_fd);
-        exit(EXIT_FAILURE);
+    while (1) {
+        puts("Waiting for client....");
+        int client_fd = accept_client(server.socket_fd);
+        if (client_fd == -1) {
+            puts("Failed to accept client connection");
+            continue;
+        }
+
+        puts("Client connected");
+
+        handle_client(client_fd);
+
+        http_response response;
+        init_http_response(&response);
+        add_http_header(&response, "Content-Type", "text/html");
+        add_http_header(&response, "Connection", "close");
+        set_response_body(&response, "<html><body><h1>Hello, world!</h1></body></html>");
+
+        send_http_response(client_fd, &response);
+        free_http_response(&response);
+
+        close(client_fd);
+        puts("Response sent to client.");
     }
 
-    puts("Client connected");
-
-    handle_client(client_fd);
-
-    close(client_fd);
     close(server.socket_fd);
 
     return 0;

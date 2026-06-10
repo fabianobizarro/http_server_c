@@ -6,7 +6,7 @@ OBJ_DIR = obj
 INCLUDE_DIR = include
 BIN_DIR = bin
 
-TARGET = $(BIN_DIR)/myhttpd
+TARGET = $(BIN_DIR)/httpd
 SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
 OBJ_FILES = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC_FILES))
 
