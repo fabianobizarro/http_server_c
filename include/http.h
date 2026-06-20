@@ -2,6 +2,7 @@
 #define HTTP_H
 
 #include <stddef.h>
+#include <stdbool.h>
 
 #define HTTP_MAX_REQUEST_LEN 8192 * 4
 #define HTTP_METHOD_MAX_LEN 8
@@ -69,5 +70,7 @@ void send_http_response(int client_fd, const http_response* response);
 
 void serve_file(const char* path, http_response* response);
 void sanitize_path(const char* requested_path, char* sanitized_path, size_t buffer_size);
+
+bool handle_request(http_request* request, http_response* response);
 
 #endif

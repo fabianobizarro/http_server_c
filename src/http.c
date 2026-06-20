@@ -1,10 +1,15 @@
 #include <http.h>
+#include <route.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+extern Route routes[];
+extern int route_count;
 
 http_parse_e read_http_request(int socket_fd, http_request* request)
 {
@@ -250,4 +255,16 @@ void serve_file(const char* path, http_response* response)
     char content_length[32] = { 0 };
     snprintf(content_length, sizeof(content_length), "%zu", file_size);
     add_http_header(response, "Content-Length", content_length);
+}
+
+bool handle_request(http_request* request, http_response* response)
+{
+    for (int i = 0; i < route_count; i++) {
+        if (strcmp(routes[i].path, request->path) == 0 && routes[i].method == request->method_e) {
+            routes[i].handler(request, response);
+            return true;
+        }
+    }
+
+    return false;
 }

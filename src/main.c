@@ -1,9 +1,26 @@
+#include "route.h"
 #include <http.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <tcp.h>
 
 #define PORT 8080
+
+void hello_handler(http_request* _, http_response* res)
+{
+    res->status_code = 200;
+
+    if (!res->body) {
+        res->body = malloc(64);
+    }
+
+    strcpy(res->body, "Hello, World!\n");
+    res->body_length = 14;
+
+    add_http_header(res, "Content-Length", "14");
+}
 
 int main()
 {
@@ -29,6 +46,8 @@ int main()
 
         init_http_response(&response);
 
+        register_route(HTTP_METHOD_GET, "/hello", hello_handler);
+
         if (read_http_request(client_fd, &request) != HTTP_PARSE_OK) {
             puts("Failed to parse request");
             close(client_fd);
@@ -44,8 +63,10 @@ int main()
         char sanitized_path[1024] = { 0 };
         sanitize_path(request.path, sanitized_path, sizeof(sanitized_path));
 
-        printf("Sanitized Path: %s\n", sanitized_path);
-        serve_file(sanitized_path, &response);
+        // printf("Sanitized Path: %s\n", sanitized_path);
+
+        if (!handle_request(&request, &response))
+            serve_file(sanitized_path, &response);
 
         send_http_response(client_fd, &response);
         free_http_response(&response);
