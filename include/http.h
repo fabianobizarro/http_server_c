@@ -67,4 +67,7 @@ char* construct_http_response(const http_response* response, size_t* response_le
 void set_response_body(http_response* response, const char* content);
 void send_http_response(int client_fd, const http_response* response);
 
+void serve_file(const char* path, http_response* response);
+void sanitize_path(const char* requested_path, char* sanitized_path, size_t buffer_size);
+
 #endif
