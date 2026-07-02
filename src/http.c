@@ -7,6 +7,21 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#define HTTP_METHODS_COUNT 9
+#define HTTP_METHODS { "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH" }
+
+const http_method_record HTTP_METHODS_DICT[] = {
+    { HTTP_METHOD_GET, "GET" },
+    { HTTP_METHOD_HEAD, "HEAD" },
+    { HTTP_METHOD_POST, "POST" },
+    { HTTP_METHOD_PUT, "PUT" },
+    { HTTP_METHOD_DELETE, "DELETE" },
+    { HTTP_METHOD_CONNECT, "CONNECT" },
+    { HTTP_METHOD_OPTIONS, "OPTIONS" },
+    { HTTP_METHOD_TRACE, "TRACE" },
+    { HTTP_METHOD_PATCH, "PATCH" },
+};
+
 http_parse_e parse_http_request(int socket_fd, http_request* request)
 {
     ssize_t bytes_read = read(socket_fd, request->buffer, sizeof(request->buffer) - 1);
@@ -20,6 +35,8 @@ http_parse_e parse_http_request(int socket_fd, http_request* request)
     if (sscanf(request->buffer, "%7s %2047s %15s", request->method, request->path, request->protocol) != 3) {
         return HTTP_PARSE_INVALID;
     }
+
+    request->method_e = parse_http_method_e(request->method);
 
     return HTTP_PARSE_OK;
 }
@@ -253,4 +270,18 @@ bool serve_file(const char* path, http_response* response)
     add_respose_header(response, "Content-Length", content_length);
 
     return true;
+}
+
+http_method_e parse_http_method_e(char* method)
+{
+    if (!method)
+        return -1;
+
+    for (int i = 0; i < HTTP_METHODS_COUNT; i++) {
+        if (strcmp(HTTP_METHODS_DICT[i].method, method) == 0) {
+            return HTTP_METHODS_DICT[i].method_e;
+        }
+    }
+
+    return -1;
 }

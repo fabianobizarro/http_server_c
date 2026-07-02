@@ -65,11 +65,8 @@ void free_server(Server* server)
 
 bool handle_request(Server* server, http_request* request, http_response* response)
 {
-
     for (int i = 0; i < server->routes_len; i++) {
-        
-        printf("%d %s\n", server->routes[i].method, server->routes[i].path);
-        
+
         if (strcmp(server->routes[i].path, request->path) == 0 && server->routes[i].method == request->method_e) {
             server->routes[i].handler(request, response);
             return true;
@@ -79,7 +76,7 @@ bool handle_request(Server* server, http_request* request, http_response* respon
     return false;
 }
 
-bool handle_request2(Server* server, http_request* request, http_response* response)
+bool process_request(Server* server, http_request* request, http_response* response)
 {
     if (handle_request(server, request, response))
         return true;
@@ -125,21 +122,15 @@ server_status_e start_server(Server* server)
             return 0;
         }
 
+        printf("Incoming request:\n%s\n", request.buffer);
+
         if (parse_request_headers(request.buffer, &request) != HTTP_PARSE_OK) {
             puts("Failed to parse headers");
             close(client_fd);
             return 0;
         }
 
-        handle_request2(server, &request, &response);
-
-        // char sanitized_path[1024] = { 0 };
-        // sanitize_path(request.path, sanitized_path, sizeof(sanitized_path));
-
-        // // printf("Sanitized Path: %s\n", sanitized_path);
-
-        // if (!handle_request(server, &request, &response))
-        //     serve_file(sanitized_path, &response);
+        process_request(server, &request, &response);
 
         send_http_response(client_fd, &response);
         free_http_response(&response);

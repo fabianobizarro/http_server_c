@@ -55,6 +55,13 @@ typedef struct {
     size_t body_length;
 } http_response;
 
+typedef struct {
+    http_method_e method_e;
+    char method[HTTP_METHOD_MAX_LEN];
+} http_method_record;
+
+http_method_e parse_http_method_e(char* method);
+
 /**
  * Request
  */
