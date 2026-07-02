@@ -1,4 +1,5 @@
-#include "route.h"
+// #include "route.h"
+#include "server.h"
 #include <http.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -7,6 +8,7 @@
 #include <tcp.h>
 
 #define PORT 8080
+#define WEB_ROOT "./www"
 
 void hello_handler(http_request* _, http_response* res)
 {
@@ -19,63 +21,34 @@ void hello_handler(http_request* _, http_response* res)
     strcpy(res->body, "Hello, World!\n");
     res->body_length = 14;
 
-    add_http_header(res, "Content-Length", "14");
+    add_respose_header(res, "Content-Length", "14");
 }
 
 int main()
 {
-    tcp_server server = { 0 };
-    server_status_e status = bind_tcp_port(&server, PORT);
-    if (status != SERVER_OK) {
-        puts("Server initialization failed");
+    Server* server;
+
+    server = init_server(PORT);
+
+    if (!server) {
+        puts("Failed to initialize server");
         exit(EXIT_FAILURE);
     }
 
-    for (;;) {
-        puts("Waiting for client....");
-        int client_fd = accept_client(server.socket_fd);
-        if (client_fd == -1) {
-            puts("Failed to accept client connection");
-            continue;
-        }
+    set_wwwroot(server, WEB_ROOT);
 
-        puts("Client connected");
+    register_route(server, HTTP_METHOD_GET, "/", &hello_handler);
+    register_route(server, HTTP_METHOD_POST, "/hello", &hello_handler);
 
-        http_response response = { 0 };
-        http_request request = { 0 };
+    // printf("Server struct\n");
+    // printf("Port: %d\n", server->port);
+    // printf("www root: %s | does contain \\0? %d \n", server->www_root, server->www_root[strlen(server->www_root)] == '\0');
+    // printf("Routes count: %d\n", server->routes_len);
 
-        init_http_response(&response);
+    start_server(server);
 
-        register_route(HTTP_METHOD_GET, "/hello", hello_handler);
-
-        if (read_http_request(client_fd, &request) != HTTP_PARSE_OK) {
-            puts("Failed to parse request");
-            close(client_fd);
-            return 0;
-        }
-
-        if (parse_http_headers(request.buffer, &request) != HTTP_PARSE_OK) {
-            puts("Failed to parse headers");
-            close(client_fd);
-            return 0;
-        }
-
-        char sanitized_path[1024] = { 0 };
-        sanitize_path(request.path, sanitized_path, sizeof(sanitized_path));
-
-        // printf("Sanitized Path: %s\n", sanitized_path);
-
-        if (!handle_request(&request, &response))
-            serve_file(sanitized_path, &response);
-
-        send_http_response(client_fd, &response);
-        free_http_response(&response);
-
-        close(client_fd);
-        puts("Response sent to client.");
-    }
-
-    close(server.socket_fd);
+    free_server(server);
+    server = NULL;
 
     return 0;
 }

@@ -1,5 +1,4 @@
 #include <http.h>
-#include <route.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -8,10 +7,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-extern Route routes[];
-extern int route_count;
-
-http_parse_e read_http_request(int socket_fd, http_request* request)
+http_parse_e parse_http_request(int socket_fd, http_request* request)
 {
     ssize_t bytes_read = read(socket_fd, request->buffer, sizeof(request->buffer) - 1);
 
@@ -28,7 +24,7 @@ http_parse_e read_http_request(int socket_fd, http_request* request)
     return HTTP_PARSE_OK;
 }
 
-http_parse_e parse_http_headers(const char* raw_request, http_request* request)
+http_parse_e parse_request_headers(const char* raw_request, http_request* request)
 {
     char* line_start = strstr(raw_request, "\r\n");
     if (!line_start)
@@ -72,14 +68,14 @@ http_parse_e parse_http_headers(const char* raw_request, http_request* request)
     return HTTP_PARSE_OK;
 }
 
-void free_http_headers(http_request* request)
+void free_request_headers(http_request* request)
 {
     free(request->headers);
     request->headers = NULL;
     request->headers_count = 0;
 }
 
-void add_http_header(http_response* response, const char* key, const char* value)
+void add_respose_header(http_response* response, const char* key, const char* value)
 {
     response->headers = realloc(response->headers, sizeof(http_header_t) * (response->header_count + 1));
     if (!response->headers) {
@@ -199,26 +195,26 @@ void set_response_body(http_response* response, const char* content)
     strncpy(response->body, content, response->body_length);
 }
 
-void sanitize_path(const char* requested_path, char* sanitized_path, size_t buffer_size)
+void sanitize_path(const char* root, const char* requested_path, char* sanitized_path, size_t buffer_size)
 {
-    const char* web_root = "./www";
-
-    snprintf(sanitized_path, buffer_size, "%s%s", web_root, requested_path);
+    snprintf(sanitized_path, buffer_size, "%s%s", root, requested_path);
 
     if (strstr(sanitized_path, "..")) {
+        // todo: force 404
         strncpy(sanitized_path, "./www/404.html", buffer_size - 1);
     }
 }
 
-void serve_file(const char* path, http_response* response)
+bool serve_file(const char* path, http_response* response)
 {
     FILE* file = fopen(path, "rb+");
     if (!file) {
-        response->status_code = 404;
-        strncpy(response->reason_phrase, "Not Found", sizeof(response->reason_phrase));
-        serve_file("./www/404.html", response);
-        // possible bug - if we delete/move the 404.html file, we might break the server
-        return;
+        return false;
+        // response->status_code = 404;
+        // strncpy(response->reason_phrase, "Not Found", sizeof(response->reason_phrase));
+        // serve_file("./www/404.html", response);
+        // // possible bug - if we delete/move the 404.html file, we might break the server
+        // return;
     }
 
     // Determine the file size
@@ -240,31 +236,21 @@ void serve_file(const char* path, http_response* response)
     response->body_length = file_size;
 
     if (strstr(path, ".html")) {
-        add_http_header(response, "Content-Type", "text/html");
+        add_respose_header(response, "Content-Type", "text/html");
     } else if (strstr(path, ".css")) {
-        add_http_header(response, "Content-Type", "text/css");
+        add_respose_header(response, "Content-Type", "text/css");
     } else if (strstr(path, ".js")) {
-        add_http_header(response, "Content-Type", "application/javascrispt");
+        add_respose_header(response, "Content-Type", "application/javascrispt");
     } else if (strstr(path, ".png")) {
-        add_http_header(response, "Content-Type", "image/png");
+        add_respose_header(response, "Content-Type", "image/png");
     } else {
-        add_http_header(response, "Content-Type", "application/octet-stream");
+        add_respose_header(response, "Content-Type", "application/octet-stream");
     }
 
     // adding content to the response
     char content_length[32] = { 0 };
     snprintf(content_length, sizeof(content_length), "%zu", file_size);
-    add_http_header(response, "Content-Length", content_length);
-}
+    add_respose_header(response, "Content-Length", content_length);
 
-bool handle_request(http_request* request, http_response* response)
-{
-    for (int i = 0; i < route_count; i++) {
-        if (strcmp(routes[i].path, request->path) == 0 && routes[i].method == request->method_e) {
-            routes[i].handler(request, response);
-            return true;
-        }
-    }
-
-    return false;
+    return true;
 }

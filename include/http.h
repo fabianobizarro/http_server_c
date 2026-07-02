@@ -1,8 +1,8 @@
 #ifndef HTTP_H
 #define HTTP_H
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #define HTTP_MAX_REQUEST_LEN 8192 * 4
 #define HTTP_METHOD_MAX_LEN 8
@@ -55,22 +55,27 @@ typedef struct {
     size_t body_length;
 } http_response;
 
-http_parse_e read_http_request(int socket_fd, http_request* request);
+/**
+ * Request
+ */
+http_parse_e parse_http_request(int socket_fd, http_request* request);
+http_parse_e parse_request_headers(const char* raw_request, http_request* request);
+void free_request_headers(http_request* request);
 
-http_parse_e parse_http_headers(const char* raw_request, http_request* request);
-void free_http_headers(http_request* request);
-void add_http_header(http_response* response, const char* key, const char* value);
-
+/**
+ * Response
+ */
+void add_respose_header(http_response* response, const char* key, const char* value);
 void free_http_response(http_response* response);
 void init_http_response(http_response* response);
-
 char* construct_http_response(const http_response* response, size_t* response_length);
 void set_response_body(http_response* response, const char* content);
 void send_http_response(int client_fd, const http_response* response);
+bool serve_file(const char* path, http_response* response);
 
-void serve_file(const char* path, http_response* response);
-void sanitize_path(const char* requested_path, char* sanitized_path, size_t buffer_size);
-
-bool handle_request(http_request* request, http_response* response);
+/**
+ * PATH
+ */
+void sanitize_path(const char* root, const char* requested_path, char* sanitized_path, size_t buffer_size);
 
 #endif
