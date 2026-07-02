@@ -13,6 +13,11 @@
 #define HTTP_MAX_HEADER_VALUE_LEN 256
 
 typedef enum {
+    SANITIZE_OK,
+    SANITIZE_ERROR
+} sanitize_result_e;
+
+typedef enum {
     HTTP_PARSE_OK,
     HTTP_PARSE_INVALID
 } http_parse_e;
@@ -83,6 +88,6 @@ bool serve_file(const char* path, http_response* response);
 /**
  * PATH
  */
-void sanitize_path(const char* root, const char* requested_path, char* sanitized_path, size_t buffer_size);
+sanitize_result_e sanitize_path(const char* root, const char* requested_path, char* sanitized_path, size_t buffer_size);
 
 #endif

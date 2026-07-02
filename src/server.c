@@ -76,19 +76,27 @@ bool handle_request(Server* server, http_request* request, http_response* respon
     return false;
 }
 
+void set_not_found(http_response* response)
+{
+    response->status_code = 404;
+    strncpy(response->reason_phrase, "Not Found", sizeof(response->reason_phrase) - 1);
+}
+
 bool process_request(Server* server, http_request* request, http_response* response)
 {
     if (handle_request(server, request, response))
         return true;
 
     char sanitized_path[1024] = { 0 };
-    sanitize_path(server->www_root, request->path, sanitized_path, sizeof(sanitized_path));
+    if (sanitize_path(server->www_root, request->path, sanitized_path, sizeof(sanitized_path)) != SANITIZE_OK) {
+        set_not_found(response);
+        return false;
+    }
 
     if (serve_file(sanitized_path, response))
         return true;
 
-    response->status_code = 404;
-    strncpy(response->reason_phrase, "Not Found", sizeof(response->reason_phrase) - 1);
+    set_not_found(response);
 
     return false;
 }

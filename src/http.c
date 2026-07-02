@@ -212,14 +212,16 @@ void set_response_body(http_response* response, const char* content)
     strncpy(response->body, content, response->body_length);
 }
 
-void sanitize_path(const char* root, const char* requested_path, char* sanitized_path, size_t buffer_size)
+sanitize_result_e sanitize_path(const char* root, const char* requested_path, char* sanitized_path, size_t buffer_size)
 {
     snprintf(sanitized_path, buffer_size, "%s%s", root, requested_path);
 
     if (strstr(sanitized_path, "..")) {
-        // todo: force 404
-        strncpy(sanitized_path, "./www/404.html", buffer_size - 1);
+        // attempt to access ../ folder on the server
+        return SANITIZE_ERROR;
     }
+
+    return SANITIZE_OK;
 }
 
 bool serve_file(const char* path, http_response* response)
