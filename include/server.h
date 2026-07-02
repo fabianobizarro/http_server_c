@@ -38,6 +38,8 @@ size_t register_route(Server* server, http_method_e method, const char* path, vo
 /**
  * socket, bind, listen, accept, loop
  */
-server_status_e start_server();
+server_status_e start_server(Server* server);
+
+void free_server(Server* server);
 
 #endif
