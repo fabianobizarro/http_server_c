@@ -6,6 +6,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+void _debug_request(http_request* r)
+{
+    printf("Incoming Request\n");
+    printf("======RAW BUFFER =====\n%s\n\n", r->buffer);
+    printf("\tProtocol: %s\n", r->protocol);
+    printf("\tMethod: %s\n", r->method);
+    printf("\tTarget: %s\n", r->target);
+    printf("\tPath: %s\n", r->path);
+    printf("\tQuery: %s\n", r->query);
+}
+
 Server* init_server(int port)
 {
     Server* server = malloc(sizeof(Server));
@@ -67,7 +78,9 @@ bool handle_request(Server* server, http_request* request, http_response* respon
 {
     for (int i = 0; i < server->routes_len; i++) {
 
-        if (strcmp(server->routes[i].path, request->path) == 0 && server->routes[i].method == request->method_e) {
+        if (
+            strcmp(server->routes[i].path, request->path) == 0
+            && server->routes[i].method == request->method_e) {
             server->routes[i].handler(request, response);
             return true;
         }
@@ -88,7 +101,7 @@ bool process_request(Server* server, http_request* request, http_response* respo
         return true;
 
     char sanitized_path[1024] = { 0 };
-    if (sanitize_path(server->www_root, request->path, sanitized_path, sizeof(sanitized_path)) != SANITIZE_OK) {
+    if (sanitize_path(server->www_root, request->target, sanitized_path, sizeof(sanitized_path)) != SANITIZE_OK) {
         set_not_found(response);
         return false;
     }
@@ -130,13 +143,13 @@ server_status_e start_server(Server* server)
             return 0;
         }
 
-        printf("Incoming request:\n%s\n", request.buffer);
-
         if (parse_request_headers(request.buffer, &request) != HTTP_PARSE_OK) {
             puts("Failed to parse headers");
             close(client_fd);
             return 0;
         }
+
+        _debug_request(&request);
 
         process_request(server, &request, &response);
 

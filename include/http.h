@@ -6,7 +6,9 @@
 
 #define HTTP_MAX_REQUEST_LEN 8192 * 4
 #define HTTP_METHOD_MAX_LEN 8
+#define HTTP_REQUEST_TARGET_MAX_LEN 2048
 #define HTTP_PATH_MAX_LEN 2048
+#define HTTP_QUERY_MAX_LEN 2048
 #define HTTP_PROTOCOL_MAX_LEN 16
 
 #define HTTP_MAX_HEADER_KEY_LEN 256
@@ -43,12 +45,18 @@ typedef struct {
 typedef struct {
     char method[HTTP_METHOD_MAX_LEN];
     http_method_e method_e;
-    char path[HTTP_PATH_MAX_LEN];
+    char target[HTTP_REQUEST_TARGET_MAX_LEN];
     char protocol[HTTP_PROTOCOL_MAX_LEN];
+
+    char path[HTTP_PATH_MAX_LEN];
+    char query[HTTP_QUERY_MAX_LEN];
 
     http_header_t* headers;
     size_t headers_count;
     char buffer[HTTP_MAX_REQUEST_LEN];
+
+    // todo: Add pointer to body
+    // todo: Add query string hashmap
 } http_request;
 
 typedef struct {
@@ -73,6 +81,7 @@ http_method_e parse_http_method_e(char* method);
 http_parse_e parse_http_request(int socket_fd, http_request* request);
 http_parse_e parse_request_headers(const char* raw_request, http_request* request);
 void free_request_headers(http_request* request);
+http_parse_e parse_request_target(const char* request_target, size_t size, http_request* request);
 
 /**
  * Response

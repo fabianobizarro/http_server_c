@@ -32,11 +32,15 @@ http_parse_e parse_http_request(int socket_fd, http_request* request)
 
     request->buffer[bytes_read] = '\0';
 
-    if (sscanf(request->buffer, "%7s %2047s %15s", request->method, request->path, request->protocol) != 3) {
+    if (sscanf(request->buffer, "%7s %2047s %15s", request->method, request->target, request->protocol) != 3) {
         return HTTP_PARSE_INVALID;
     }
 
     request->method_e = parse_http_method_e(request->method);
+
+    if (parse_request_target(request->target, HTTP_REQUEST_TARGET_MAX_LEN, request) != HTTP_PARSE_OK) {
+        return HTTP_PARSE_INVALID;
+    };
 
     return HTTP_PARSE_OK;
 }
@@ -286,4 +290,42 @@ http_method_e parse_http_method_e(char* method)
     }
 
     return -1;
+}
+
+http_parse_e parse_request_target(const char* request_target, size_t size, http_request* request)
+{
+    if (!request_target)
+        return HTTP_PARSE_INVALID;
+
+    if (!request)
+        return HTTP_PARSE_INVALID;
+
+    if (size > HTTP_REQUEST_TARGET_MAX_LEN)
+        return HTTP_PARSE_INVALID;
+
+    char* source = calloc(size, sizeof(char));
+    if (!source) {
+        puts("Failed to allocate memory when parsing request target");
+        exit(EXIT_FAILURE);
+    }
+
+    strncpy(source, request_target, size);
+
+    char* path = strtok(source, "?");
+    char* query = strtok(NULL, "?");
+
+    strncpy(request->path, path, HTTP_PATH_MAX_LEN);
+
+    if (query) {
+        strncpy(request->query, query, HTTP_QUERY_MAX_LEN);
+    } else {
+        strcpy(request->query, "");
+    }
+
+    free(source);
+    source = NULL;
+    path = NULL;
+    query = NULL;
+
+    return HTTP_PARSE_OK;
 }
