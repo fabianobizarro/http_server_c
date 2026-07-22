@@ -57,6 +57,12 @@ typedef struct {
 
     // todo: Add pointer to body
     // todo: Add query string hashmap
+    /**
+     * body: {
+     *  content,
+     *  length
+     * }
+     */
 } http_request;
 
 typedef struct {
