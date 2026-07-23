@@ -1,4 +1,4 @@
-# http_server_c
+# C HTTP Server
 
 A minimal HTTP/1.1 server written in C using Berkeley sockets. It supports custom route handlers, static file serving, and basic request/response parsing.
 
