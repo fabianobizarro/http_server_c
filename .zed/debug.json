@@ -4,7 +4,7 @@
 // see: https://zed.dev/docs/debugger
 [
   {
-    "label": "Debug native binary",
+    "label": "Debug http server",
     "build": {
       "command": "make",
       "args": ["-j8"],
@@ -17,7 +17,7 @@
   {
     "label": "Parsing Test",
     "build": {
-      "command": "gcc -g -Iinclude -o bin/parse_test tests/parse_test.c src/http.c",
+      "command": "gcc -g -Iinclude -o bin/parse_test tests/parse_test.c src/http.c src/query_string.c src/dynamic_array.c",
       "cwd": "$ZED_WORKTREE_ROOT",
     },
     "program": "$ZED_WORKTREE_ROOT/bin/parse_test",

@@ -1,3 +1,4 @@
+#include "query_string.h"
 #include <http.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -32,6 +33,7 @@ http_parse_e parse_http_request(int socket_fd, http_request* request)
 
     request->buffer[bytes_read] = '\0';
 
+    // parse method, target and protocol
     if (sscanf(request->buffer, "%7s %2047s %15s", request->method, request->target, request->protocol) != 3) {
         return HTTP_PARSE_INVALID;
     }
@@ -41,6 +43,10 @@ http_parse_e parse_http_request(int socket_fd, http_request* request)
     if (parse_request_target(request->target, HTTP_REQUEST_TARGET_MAX_LEN, request) != HTTP_PARSE_OK) {
         return HTTP_PARSE_INVALID;
     };
+
+    if (parse_query_string(request) != HTTP_PARSE_OK) {
+        return HTTP_PARSE_INVALID;
+    }
 
     return HTTP_PARSE_OK;
 }
@@ -233,11 +239,6 @@ bool serve_file(const char* path, http_response* response)
     FILE* file = fopen(path, "rb+");
     if (!file) {
         return false;
-        // response->status_code = 404;
-        // strncpy(response->reason_phrase, "Not Found", sizeof(response->reason_phrase));
-        // serve_file("./www/404.html", response);
-        // // possible bug - if we delete/move the 404.html file, we might break the server
-        // return;
     }
 
     // Determine the file size
@@ -326,6 +327,43 @@ http_parse_e parse_request_target(const char* request_target, size_t size, http_
     source = NULL;
     path = NULL;
     query = NULL;
+
+    return HTTP_PARSE_OK;
+}
+
+http_parse_e parse_query_string(http_request* request)
+{
+    if (!request)
+        return HTTP_PARSE_INVALID;
+
+    request->query_string = qs_init();
+
+    char* source = calloc(strlen(request->query), HTTP_QUERY_MAX_LEN);
+    strncpy(source, request->query, strlen(request->query));
+
+    char *keyvalue = NULL, *key = NULL, *value = NULL;
+    char* sep = NULL;
+    int sep_pos;
+
+    keyvalue = strtok(source, "&");
+
+    while (keyvalue != NULL) {
+        sep = strchr(keyvalue, '=');
+        sep_pos = sep - keyvalue;
+
+        key = calloc(sep_pos, sizeof(char));
+        value = calloc(strlen(sep) - 1, sizeof(char));
+
+        memcpy(key, keyvalue, sep_pos);
+        memcpy(value, sep + 1, strlen(sep) - 1);
+
+        qs_add(request->query_string, key, value);
+
+        free(key);
+        free(value);
+
+        keyvalue = strtok(NULL, "&");
+    }
 
     return HTTP_PARSE_OK;
 }

@@ -1,6 +1,7 @@
 #ifndef HTTP_H
 #define HTTP_H
 
+#include "query_string.h"
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -55,14 +56,9 @@ typedef struct {
     size_t headers_count;
     char buffer[HTTP_MAX_REQUEST_LEN];
 
+    QueryString* query_string;
+
     // todo: Add pointer to body
-    // todo: Add query string hashmap
-    /**
-     * body: {
-     *  content,
-     *  length
-     * }
-     */
 } http_request;
 
 typedef struct {
@@ -88,6 +84,7 @@ http_parse_e parse_http_request(int socket_fd, http_request* request);
 http_parse_e parse_request_headers(const char* raw_request, http_request* request);
 void free_request_headers(http_request* request);
 http_parse_e parse_request_target(const char* request_target, size_t size, http_request* request);
+http_parse_e parse_query_string(http_request* request);
 
 /**
  * Response

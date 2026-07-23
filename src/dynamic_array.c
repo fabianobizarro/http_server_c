@@ -1,6 +1,7 @@
 #include "dynamic_array.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 DynamicArray* da_init(void)
 {
@@ -21,6 +22,8 @@ void da_append(DynamicArray* array, const char* value)
     if (!array)
         return;
 
+    char* dest;
+
     if (array->count >= array->capacity) {
         array->capacity = array->capacity == 0
             ? DA_INITIAL_CAPACITY
@@ -35,8 +38,10 @@ void da_append(DynamicArray* array, const char* value)
             exit(EXIT_FAILURE);
         }
     }
-
-    array->values[array->count++] = value;
+    dest = malloc(strlen(value) * sizeof(char));
+    strncpy(dest, value, strlen(value));
+    array->values[array->count++] = dest;
+    dest = NULL;
 }
 
 void free_da(DynamicArray* a)

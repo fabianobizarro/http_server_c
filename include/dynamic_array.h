@@ -6,7 +6,7 @@
 const static short DA_INITIAL_CAPACITY = 20;
 
 typedef struct {
-    const char** values;
+    char** values;
     size_t count;
     size_t capacity;
 } DynamicArray;

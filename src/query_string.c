@@ -36,12 +36,8 @@ QSNode* init_array_node(const char* key)
     QSNode* p = malloc(sizeof(QSNode));
     memset(p, 0, sizeof(QSNode));
 
-    // p->key = key;
-    // init key pointer
-    unsigned long s = strlen(key);
     p->key = malloc(strlen(key) * sizeof(char));
     strncpy((char*)p->key, key, strlen(key));
-    //
 
     p->arrayvalues = malloc(sizeof(DynamicArray));
     memset(p->arrayvalues, 0, sizeof(DynamicArray));
@@ -70,6 +66,9 @@ void qs_add(QueryString* qs, const char* key, const char* value)
 
 qs_result qs_get(QueryString* qs, const char* key, QSNode* node)
 {
+    if (qs->size == 0)
+        return QS_KEY_NOT_FOUND;
+
     long index = _find_index(qs, key);
 
     if (index == -1) {
