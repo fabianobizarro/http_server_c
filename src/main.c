@@ -1,81 +1,96 @@
-#include "route.h"
-#include <http.h>
+#include "dynamic_array.h"
+#include "http.h"
+#include "query_string.h"
+#include "server.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <tcp.h>
 
 #define PORT 8080
+#define WEB_ROOT "./www"
 
-void hello_handler(http_request* _, http_response* res)
+void ensure_buffer_allocation(void* buffer, size_t* buffer_size, size_t additional_size)
 {
+    while (additional_size + 1 > *buffer_size) {
+        *buffer_size *= 2;
+        buffer = realloc(buffer, *buffer_size);
+        if (!buffer) {
+            puts("Failed to reallocate memory for the response header");
+            perror("realloc");
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+void hello_handler(http_request* req, http_response* res)
+{
+    puts("EXECUTING HELLO HANDLER");
+
     res->status_code = 200;
 
-    if (!res->body) {
-        res->body = malloc(64);
+    size_t buffer_size = 200;
+    size_t offset = 0;
+    char* buffer = calloc(buffer_size, sizeof(char));
+
+    offset = snprintf(buffer, buffer_size, "Hello!\n");
+
+    for (size_t i = 0; i < req->query_string->size; i++) {
+
+        DynamicArray* darray = req->query_string->nodes[i]->arrayvalues;
+        size_t additional_length = snprintf(
+            NULL,
+            0,
+            "[%s] => ",
+            req->query_string->nodes[i]->key);
+
+        ensure_buffer_allocation(buffer, &buffer_size, offset + additional_length);
+
+        offset += snprintf(buffer + offset, buffer_size - offset, "[%s] => ", req->query_string->nodes[i]->key);
+
+        for (size_t j = 0; j < darray->count; j++) {
+            additional_length += snprintf(NULL, 0, "%s ", darray->values[j]);
+            ensure_buffer_allocation(buffer, &buffer_size, offset + additional_length);
+
+            offset += snprintf(buffer + offset, buffer_size - offset, "%s ", darray->values[j]);
+        }
+
+        additional_length += snprintf(NULL, 0, "\n");
+        ensure_buffer_allocation(buffer, &buffer_size, offset + additional_length);
+        offset += snprintf(buffer + offset, buffer_size - offset, "\n");
     }
 
-    strcpy(res->body, "Hello, World!\n");
-    res->body_length = 14;
+    res->body = malloc(buffer_size);
+    strncpy(res->body, buffer, buffer_size);
+    res->body_length = offset;
+    res->body_length = strlen(buffer);
 
-    add_http_header(res, "Content-Length", "14");
+    char content_length[32] = { 0 };
+    snprintf(content_length, sizeof(content_length), "%zu", offset);
+    add_respose_header(res, "Content-Length", content_length);
 }
 
 int main()
 {
-    tcp_server server = { 0 };
-    server_status_e status = bind_tcp_port(&server, PORT);
-    if (status != SERVER_OK) {
-        puts("Server initialization failed");
+    Server* server;
+
+    server = init_server(PORT);
+
+    if (!server) {
+        puts("Failed to initialize server");
         exit(EXIT_FAILURE);
     }
 
-    for (;;) {
-        puts("Waiting for client....");
-        int client_fd = accept_client(server.socket_fd);
-        if (client_fd == -1) {
-            puts("Failed to accept client connection");
-            continue;
-        }
+    set_wwwroot(server, WEB_ROOT);
 
-        puts("Client connected");
+    register_route(server, HTTP_METHOD_GET, "/", &hello_handler);
+    register_route(server, HTTP_METHOD_GET, "/hello", &hello_handler);
+    register_route(server, HTTP_METHOD_POST, "/hello", &hello_handler);
 
-        http_response response = { 0 };
-        http_request request = { 0 };
+    start_server(server);
 
-        init_http_response(&response);
-
-        register_route(HTTP_METHOD_GET, "/hello", hello_handler);
-
-        if (read_http_request(client_fd, &request) != HTTP_PARSE_OK) {
-            puts("Failed to parse request");
-            close(client_fd);
-            return 0;
-        }
-
-        if (parse_http_headers(request.buffer, &request) != HTTP_PARSE_OK) {
-            puts("Failed to parse headers");
-            close(client_fd);
-            return 0;
-        }
-
-        char sanitized_path[1024] = { 0 };
-        sanitize_path(request.path, sanitized_path, sizeof(sanitized_path));
-
-        // printf("Sanitized Path: %s\n", sanitized_path);
-
-        if (!handle_request(&request, &response))
-            serve_file(sanitized_path, &response);
-
-        send_http_response(client_fd, &response);
-        free_http_response(&response);
-
-        close(client_fd);
-        puts("Response sent to client.");
-    }
-
-    close(server.socket_fd);
+    free_server(server);
+    server = NULL;
 
     return 0;
 }

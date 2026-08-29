@@ -2,6 +2,8 @@
 #include <string.h>
 #include <tcp.h>
 
+#define BACKLOG 5
+
 server_status_e bind_tcp_port(tcp_server* server, int port)
 {
     int opt = 1;
@@ -30,7 +32,7 @@ server_status_e bind_tcp_port(tcp_server* server, int port)
         return SERVER_BIND_ERROR;
     }
 
-    if (listen(server->socket_fd, 5) < 0) {
+    if (listen(server->socket_fd, BACKLOG) < 0) {
         puts("Listen failed");
         close(server->socket_fd);
         return SERVER_LISTEN_ERROR;

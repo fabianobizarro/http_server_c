@@ -4,13 +4,33 @@
 // see: https://zed.dev/docs/debugger
 [
   {
-    "label": "Debug native binary",
+    "label": "Debug http server",
     "build": {
       "command": "make",
       "args": ["-j8"],
       "cwd": "$ZED_WORKTREE_ROOT",
     },
     "program": "$ZED_WORKTREE_ROOT/bin/httpd",
+    "request": "launch",
+    "adapter": "CodeLLDB",
+  },
+  {
+    "label": "Parsing Test",
+    "build": {
+      "command": "gcc -g -Iinclude -o bin/parse_test tests/parse_test.c src/http.c src/query_string.c src/dynamic_array.c",
+      "cwd": "$ZED_WORKTREE_ROOT",
+    },
+    "program": "$ZED_WORKTREE_ROOT/bin/parse_test",
+    "request": "launch",
+    "adapter": "CodeLLDB",
+  },
+  {
+    "label": "Querystring Test",
+    "build": {
+      "command": "gcc -Iinclude -g -o bin/qstest tests/query_string.test.c src/query_string.c src/dynamic_array.c",
+      "cwd": "$ZED_WORKTREE_ROOT",
+    },
+    "program": "$ZED_WORKTREE_ROOT/bin/qstest",
     "request": "launch",
     "adapter": "CodeLLDB",
   },

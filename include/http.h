@@ -1,16 +1,24 @@
 #ifndef HTTP_H
 #define HTTP_H
 
-#include <stddef.h>
+#include "query_string.h"
 #include <stdbool.h>
+#include <stddef.h>
 
 #define HTTP_MAX_REQUEST_LEN 8192 * 4
 #define HTTP_METHOD_MAX_LEN 8
+#define HTTP_REQUEST_TARGET_MAX_LEN 2048
 #define HTTP_PATH_MAX_LEN 2048
+#define HTTP_QUERY_MAX_LEN 2048
 #define HTTP_PROTOCOL_MAX_LEN 16
 
 #define HTTP_MAX_HEADER_KEY_LEN 256
 #define HTTP_MAX_HEADER_VALUE_LEN 256
+
+typedef enum {
+    SANITIZE_OK,
+    SANITIZE_ERROR
+} sanitize_result_e;
 
 typedef enum {
     HTTP_PARSE_OK,
@@ -36,14 +44,26 @@ typedef struct {
 } http_header_t;
 
 typedef struct {
+    const char* content;
+    size_t length;
+} http_request_body;
+
+typedef struct {
     char method[HTTP_METHOD_MAX_LEN];
     http_method_e method_e;
-    char path[HTTP_PATH_MAX_LEN];
+    char target[HTTP_REQUEST_TARGET_MAX_LEN];
     char protocol[HTTP_PROTOCOL_MAX_LEN];
+
+    char path[HTTP_PATH_MAX_LEN];
+    char query[HTTP_QUERY_MAX_LEN];
 
     http_header_t* headers;
     size_t headers_count;
     char buffer[HTTP_MAX_REQUEST_LEN];
+
+    QueryString* query_string;
+
+    http_request_body body;
 } http_request;
 
 typedef struct {
@@ -55,22 +75,36 @@ typedef struct {
     size_t body_length;
 } http_response;
 
-http_parse_e read_http_request(int socket_fd, http_request* request);
+typedef struct {
+    http_method_e method_e;
+    char method[HTTP_METHOD_MAX_LEN];
+} http_method_record;
 
-http_parse_e parse_http_headers(const char* raw_request, http_request* request);
-void free_http_headers(http_request* request);
-void add_http_header(http_response* response, const char* key, const char* value);
+http_method_e parse_http_method_e(char* method);
 
+/**
+ * Request
+ */
+http_parse_e parse_http_request(int socket_fd, http_request* request);
+http_parse_e parse_request_headers(const char* raw_request, http_request* request);
+void free_request_headers(http_request* request);
+http_parse_e parse_request_target(const char* request_target, size_t size, http_request* request);
+http_parse_e parse_query_string(http_request* request);
+http_parse_e parse_request_body(const char* raw_request, size_t request_length, http_request_body* body);
+/**
+ * Response
+ */
+void add_respose_header(http_response* response, const char* key, const char* value);
 void free_http_response(http_response* response);
 void init_http_response(http_response* response);
-
 char* construct_http_response(const http_response* response, size_t* response_length);
 void set_response_body(http_response* response, const char* content);
 void send_http_response(int client_fd, const http_response* response);
+bool serve_file(const char* path, http_response* response);
 
-void serve_file(const char* path, http_response* response);
-void sanitize_path(const char* requested_path, char* sanitized_path, size_t buffer_size);
-
-bool handle_request(http_request* request, http_response* response);
+/**
+ * PATH
+ */
+sanitize_result_e sanitize_path(const char* root, const char* requested_path, char* sanitized_path, size_t buffer_size);
 
 #endif

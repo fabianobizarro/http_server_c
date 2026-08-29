@@ -1,5 +1,5 @@
+#include "query_string.h"
 #include <http.h>
-#include <route.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -8,10 +8,22 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-extern Route routes[];
-extern int route_count;
+#define HTTP_METHODS_COUNT 9
+#define HTTP_METHODS { "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH" }
 
-http_parse_e read_http_request(int socket_fd, http_request* request)
+const http_method_record HTTP_METHODS_DICT[] = {
+    { HTTP_METHOD_GET, "GET" },
+    { HTTP_METHOD_HEAD, "HEAD" },
+    { HTTP_METHOD_POST, "POST" },
+    { HTTP_METHOD_PUT, "PUT" },
+    { HTTP_METHOD_DELETE, "DELETE" },
+    { HTTP_METHOD_CONNECT, "CONNECT" },
+    { HTTP_METHOD_OPTIONS, "OPTIONS" },
+    { HTTP_METHOD_TRACE, "TRACE" },
+    { HTTP_METHOD_PATCH, "PATCH" },
+};
+
+http_parse_e parse_http_request(int socket_fd, http_request* request)
 {
     ssize_t bytes_read = read(socket_fd, request->buffer, sizeof(request->buffer) - 1);
 
@@ -21,14 +33,29 @@ http_parse_e read_http_request(int socket_fd, http_request* request)
 
     request->buffer[bytes_read] = '\0';
 
-    if (sscanf(request->buffer, "%7s %2047s %15s", request->method, request->path, request->protocol) != 3) {
+    // parse method, target and protocol
+    if (sscanf(request->buffer, "%7s %2047s %15s", request->method, request->target, request->protocol) != 3) {
+        return HTTP_PARSE_INVALID;
+    }
+
+    request->method_e = parse_http_method_e(request->method);
+
+    if (parse_request_target(request->target, HTTP_REQUEST_TARGET_MAX_LEN, request) != HTTP_PARSE_OK) {
+        return HTTP_PARSE_INVALID;
+    };
+
+    if (parse_query_string(request) != HTTP_PARSE_OK) {
+        return HTTP_PARSE_INVALID;
+    }
+
+    if (parse_request_body(request->buffer, bytes_read, &request->body) != HTTP_PARSE_OK) {
         return HTTP_PARSE_INVALID;
     }
 
     return HTTP_PARSE_OK;
 }
 
-http_parse_e parse_http_headers(const char* raw_request, http_request* request)
+http_parse_e parse_request_headers(const char* raw_request, http_request* request)
 {
     char* line_start = strstr(raw_request, "\r\n");
     if (!line_start)
@@ -72,14 +99,14 @@ http_parse_e parse_http_headers(const char* raw_request, http_request* request)
     return HTTP_PARSE_OK;
 }
 
-void free_http_headers(http_request* request)
+void free_request_headers(http_request* request)
 {
     free(request->headers);
     request->headers = NULL;
     request->headers_count = 0;
 }
 
-void add_http_header(http_response* response, const char* key, const char* value)
+void add_respose_header(http_response* response, const char* key, const char* value)
 {
     response->headers = realloc(response->headers, sizeof(http_header_t) * (response->header_count + 1));
     if (!response->headers) {
@@ -199,26 +226,23 @@ void set_response_body(http_response* response, const char* content)
     strncpy(response->body, content, response->body_length);
 }
 
-void sanitize_path(const char* requested_path, char* sanitized_path, size_t buffer_size)
+sanitize_result_e sanitize_path(const char* root, const char* requested_path, char* sanitized_path, size_t buffer_size)
 {
-    const char* web_root = "./www";
-
-    snprintf(sanitized_path, buffer_size, "%s%s", web_root, requested_path);
+    snprintf(sanitized_path, buffer_size, "%s%s", root, requested_path);
 
     if (strstr(sanitized_path, "..")) {
-        strncpy(sanitized_path, "./www/404.html", buffer_size - 1);
+        // attempt to access ../ folder on the server
+        return SANITIZE_ERROR;
     }
+
+    return SANITIZE_OK;
 }
 
-void serve_file(const char* path, http_response* response)
+bool serve_file(const char* path, http_response* response)
 {
     FILE* file = fopen(path, "rb+");
     if (!file) {
-        response->status_code = 404;
-        strncpy(response->reason_phrase, "Not Found", sizeof(response->reason_phrase));
-        serve_file("./www/404.html", response);
-        // possible bug - if we delete/move the 404.html file, we might break the server
-        return;
+        return false;
     }
 
     // Determine the file size
@@ -240,31 +264,145 @@ void serve_file(const char* path, http_response* response)
     response->body_length = file_size;
 
     if (strstr(path, ".html")) {
-        add_http_header(response, "Content-Type", "text/html");
+        add_respose_header(response, "Content-Type", "text/html");
     } else if (strstr(path, ".css")) {
-        add_http_header(response, "Content-Type", "text/css");
+        add_respose_header(response, "Content-Type", "text/css");
     } else if (strstr(path, ".js")) {
-        add_http_header(response, "Content-Type", "application/javascrispt");
+        add_respose_header(response, "Content-Type", "application/javascrispt");
     } else if (strstr(path, ".png")) {
-        add_http_header(response, "Content-Type", "image/png");
+        add_respose_header(response, "Content-Type", "image/png");
     } else {
-        add_http_header(response, "Content-Type", "application/octet-stream");
+        add_respose_header(response, "Content-Type", "application/octet-stream");
     }
 
     // adding content to the response
     char content_length[32] = { 0 };
     snprintf(content_length, sizeof(content_length), "%zu", file_size);
-    add_http_header(response, "Content-Length", content_length);
+    add_respose_header(response, "Content-Length", content_length);
+
+    return true;
 }
 
-bool handle_request(http_request* request, http_response* response)
+http_method_e parse_http_method_e(char* method)
 {
-    for (int i = 0; i < route_count; i++) {
-        if (strcmp(routes[i].path, request->path) == 0 && routes[i].method == request->method_e) {
-            routes[i].handler(request, response);
-            return true;
+    if (!method)
+        return -1;
+
+    for (int i = 0; i < HTTP_METHODS_COUNT; i++) {
+        if (strcmp(HTTP_METHODS_DICT[i].method, method) == 0) {
+            return HTTP_METHODS_DICT[i].method_e;
         }
     }
 
-    return false;
+    return -1;
+}
+
+http_parse_e parse_request_target(const char* request_target, size_t size, http_request* request)
+{
+    if (!request_target)
+        return HTTP_PARSE_INVALID;
+
+    if (!request)
+        return HTTP_PARSE_INVALID;
+
+    if (size > HTTP_REQUEST_TARGET_MAX_LEN)
+        return HTTP_PARSE_INVALID;
+
+    char* source = calloc(size, sizeof(char));
+    if (!source) {
+        puts("Failed to allocate memory when parsing request target");
+        exit(EXIT_FAILURE);
+    }
+
+    strncpy(source, request_target, size);
+
+    char* path = strtok(source, "?");
+    char* query = strtok(NULL, "?");
+
+    strncpy(request->path, path, HTTP_PATH_MAX_LEN);
+
+    if (query) {
+        strncpy(request->query, query, HTTP_QUERY_MAX_LEN);
+    } else {
+        strcpy(request->query, "");
+    }
+
+    free(source);
+    source = NULL;
+    path = NULL;
+    query = NULL;
+
+    return HTTP_PARSE_OK;
+}
+
+http_parse_e parse_query_string(http_request* request)
+{
+    if (!request)
+        return HTTP_PARSE_INVALID;
+
+    request->query_string = qs_init();
+
+    char* source = calloc(strlen(request->query), HTTP_QUERY_MAX_LEN);
+    strncpy(source, request->query, strlen(request->query));
+
+    char *keyvalue = NULL, *key = NULL, *value = NULL;
+    char* separator = NULL;
+    int key_size = 0;
+    int value_size = 0;
+
+    for (keyvalue = strtok(source, "&"); keyvalue != NULL; keyvalue = strtok(NULL, "&")) {
+        separator = strchr(keyvalue, '=');
+        if (separator) {
+            key_size = separator - keyvalue;
+            value_size = strlen(separator) - 1;
+        } else {
+            key_size = strlen(keyvalue);
+            value_size = 0;
+        }
+
+        key = calloc(key_size, sizeof(char));
+        value = calloc(value_size, sizeof(char));
+
+        memcpy(key, keyvalue, key_size);
+        if (value_size > 0)
+            memcpy(value, separator + 1, value_size);
+        else
+            memset(value, 0, value_size);
+
+        qs_add(request->query_string, key, value);
+
+        free(key);
+        free(value);
+        key = NULL;
+        value = NULL;
+    }
+
+    return HTTP_PARSE_OK;
+}
+
+http_parse_e parse_request_body(
+    const char* raw_request,
+    size_t request_length,
+    http_request_body* body)
+{
+    if (!raw_request || !*raw_request) {
+        return HTTP_PARSE_INVALID;
+    }
+
+    char* headers = memmem(raw_request, request_length, "\r\n\r\n", 4);
+    if (!headers) {
+        body->length = 0;
+        body->content = NULL;
+
+        return HTTP_PARSE_INVALID;
+    }
+
+    const char* start = headers + 4;
+    size_t header_len = start - raw_request;
+    size_t body_len = request_length - header_len;
+
+    body->content = start;
+    body->length = body_len;
+
+    return HTTP_PARSE_OK;
 }
