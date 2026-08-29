@@ -48,6 +48,10 @@ http_parse_e parse_http_request(int socket_fd, http_request* request)
         return HTTP_PARSE_INVALID;
     }
 
+    if (parse_request_body(request->buffer, bytes_read, &request->body) != HTTP_PARSE_OK) {
+        return HTTP_PARSE_INVALID;
+    }
+
     return HTTP_PARSE_OK;
 }
 
@@ -342,28 +346,63 @@ http_parse_e parse_query_string(http_request* request)
     strncpy(source, request->query, strlen(request->query));
 
     char *keyvalue = NULL, *key = NULL, *value = NULL;
-    char* sep = NULL;
-    int sep_pos;
+    char* separator = NULL;
+    int key_size = 0;
+    int value_size = 0;
 
-    keyvalue = strtok(source, "&");
+    for (keyvalue = strtok(source, "&"); keyvalue != NULL; keyvalue = strtok(NULL, "&")) {
+        separator = strchr(keyvalue, '=');
+        if (separator) {
+            key_size = separator - keyvalue;
+            value_size = strlen(separator) - 1;
+        } else {
+            key_size = strlen(keyvalue);
+            value_size = 0;
+        }
 
-    while (keyvalue != NULL) {
-        sep = strchr(keyvalue, '=');
-        sep_pos = sep - keyvalue;
+        key = calloc(key_size, sizeof(char));
+        value = calloc(value_size, sizeof(char));
 
-        key = calloc(sep_pos, sizeof(char));
-        value = calloc(strlen(sep) - 1, sizeof(char));
-
-        memcpy(key, keyvalue, sep_pos);
-        memcpy(value, sep + 1, strlen(sep) - 1);
+        memcpy(key, keyvalue, key_size);
+        if (value_size > 0)
+            memcpy(value, separator + 1, value_size);
+        else
+            memset(value, 0, value_size);
 
         qs_add(request->query_string, key, value);
 
         free(key);
         free(value);
-
-        keyvalue = strtok(NULL, "&");
+        key = NULL;
+        value = NULL;
     }
+
+    return HTTP_PARSE_OK;
+}
+
+http_parse_e parse_request_body(
+    const char* raw_request,
+    size_t request_length,
+    http_request_body* body)
+{
+    if (!raw_request || !*raw_request) {
+        return HTTP_PARSE_INVALID;
+    }
+
+    char* headers = memmem(raw_request, request_length, "\r\n\r\n", 4);
+    if (!headers) {
+        body->length = 0;
+        body->content = NULL;
+
+        return HTTP_PARSE_INVALID;
+    }
+
+    const char* start = headers + 4;
+    size_t header_len = start - raw_request;
+    size_t body_len = request_length - header_len;
+
+    body->content = start;
+    body->length = body_len;
 
     return HTTP_PARSE_OK;
 }

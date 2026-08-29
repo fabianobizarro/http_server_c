@@ -9,7 +9,7 @@
 void _debug_request(http_request* r)
 {
     printf("Incoming Request\n");
-    printf("======RAW BUFFER =====\n%s\n\n", r->buffer);
+    printf("======RAW BUFFER =====\n%s\n-----------------------------\n", r->buffer);
     printf("\tProtocol: %s\n", r->protocol);
     printf("\tMethod: %s\n", r->method);
     printf("\tTarget: %s\n", r->target);
@@ -149,7 +149,7 @@ server_status_e start_server(Server* server)
             return 0;
         }
 
-        _debug_request(&request);
+        // _debug_request(&request);
 
         process_request(server, &request, &response);
 

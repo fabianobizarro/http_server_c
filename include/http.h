@@ -44,6 +44,11 @@ typedef struct {
 } http_header_t;
 
 typedef struct {
+    const char* content;
+    size_t length;
+} http_request_body;
+
+typedef struct {
     char method[HTTP_METHOD_MAX_LEN];
     http_method_e method_e;
     char target[HTTP_REQUEST_TARGET_MAX_LEN];
@@ -58,7 +63,7 @@ typedef struct {
 
     QueryString* query_string;
 
-    // todo: Add pointer to body
+    http_request_body body;
 } http_request;
 
 typedef struct {
@@ -85,7 +90,7 @@ http_parse_e parse_request_headers(const char* raw_request, http_request* reques
 void free_request_headers(http_request* request);
 http_parse_e parse_request_target(const char* request_target, size_t size, http_request* request);
 http_parse_e parse_query_string(http_request* request);
-
+http_parse_e parse_request_body(const char* raw_request, size_t request_length, http_request_body* body);
 /**
  * Response
  */
